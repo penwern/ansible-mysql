@@ -1,0 +1,156 @@
+# SPDX-License-Identifier: MIT-0
+---
+# MySQL secure installation tasks
+
+- name: Check MySQL version for validate_password plugin compatibility
+  ansible.builtin.set_fact:
+    mysql_major_version: "{{ mysql_installed_version.split('.')[0] | int }}"
+    mysql_minor_version: "{{ mysql_installed_version.split('.')[1] | int }}"
+
+- name: Determine validate_password plugin name based on version
+  ansible.builtin.set_fact:
+    validate_password_plugin_name: >-
+      {{ 'validate_password' if mysql_major_version | int >= 8 else 'validate_password' }}
+    validate_password_soname: >-
+      {{ 'validate_password.so' if mysql_major_version | int >= 8 else 'validate_password.so' }}
+
+- name: Check if validate_password plugin is installed
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: >-
+      SELECT * FROM INFORMATION_SCHEMA.PLUGINS WHERE PLUGIN_NAME = '{{ validate_password_plugin_name }}';
+  register: validate_password_plugin
+  when: mysql_validate_password_enable
+
+- name: Install validate_password plugin if not installed
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: >-
+      INSTALL PLUGIN {{ validate_password_plugin_name }} SONAME '{{ validate_password_soname }}';
+  when:
+    - mysql_validate_password_enable
+    - validate_password_plugin.rowcount == [0]
+  register: plugin_install_result
+  failed_when: false
+
+- name: Handle plugin installation error (MySQL 8.0+ has it built-in)
+  ansible.builtin.debug:
+    msg: >-
+      validate_password plugin may already be available as a component in MySQL 8.0+
+  when:
+    - mysql_validate_password_enable
+    - plugin_install_result is defined
+    - plugin_install_result.failed | default(false)
+
+- name: Install validate_password component (MySQL 8.0+)
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: INSTALL COMPONENT 'file://component_validate_password';
+  when:
+    - mysql_validate_password_enable
+    - mysql_major_version | int >= 8
+    - plugin_install_result is defined
+    - plugin_install_result.failed | default(false)
+  failed_when: false
+
+- name: Configure MySQL password validation variables
+  community.mysql.mysql_variables:
+    login_unix_socket: "{{ mysql_socket }}"
+    variable: "{{ item.variable }}"
+    value: "{{ item.value }}"
+  loop:
+    - variable: validate_password.policy
+      value: "{{ mysql_validate_password_policy }}"
+    - variable: validate_password.length
+      value: "{{ mysql_validate_password_length }}"
+    - variable: validate_password.mixed_case_count
+      value: "{{ mysql_validate_password_mixed_case_count }}"
+    - variable: validate_password.number_count
+      value: "{{ mysql_validate_password_number_count }}"
+    - variable: validate_password.special_char_count
+      value: "{{ mysql_validate_password_special_char_count }}"
+    - variable: validate_password.check_user_name
+      value: "{{ mysql_validate_password_check_user_name }}"
+  when:
+    - mysql_validate_password_enable
+    - mysql_major_version | int >= 8
+  failed_when: false
+
+- name: Configure MySQL password validation variables (legacy naming)
+  community.mysql.mysql_variables:
+    login_unix_socket: "{{ mysql_socket }}"
+    variable: "{{ item.variable }}"
+    value: "{{ item.value }}"
+  loop:
+    - variable: mysql_validate_password_policy
+      value: "{{ mysql_validate_password_policy }}"
+    - variable: mysql_validate_password_length
+      value: "{{ mysql_validate_password_length }}"
+    - variable: mysql_validate_password_mixed_case_count
+      value: "{{ mysql_validate_password_mixed_case_count }}"
+    - variable: mysql_validate_password_number_count
+      value: "{{ mysql_validate_password_number_count }}"
+    - variable: mysql_validate_password_special_char_count
+      value: "{{ mysql_validate_password_special_char_count }}"
+    - variable: mysql_validate_password_check_user_name
+      value: "{{ mysql_validate_password_check_user_name }}"
+  when:
+    - mysql_validate_password_enable
+    - mysql_major_version | int < 8
+  failed_when: false
+
+- name: Set validate_password dictionary file (if specified)
+  community.mysql.mysql_variables:
+    login_unix_socket: "{{ mysql_socket }}"
+    variable: validate_password.dictionary_file
+    value: "{{ mysql_validate_password_dictionary_file }}"
+  when:
+    - mysql_validate_password_enable
+    - mysql_validate_password_dictionary_file != ""
+    - mysql_major_version | int >= 8
+  failed_when: false
+
+- name: Remove anonymous users
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: DELETE FROM mysql.user WHERE User='';
+  when: mysql_remove_anonymous_users
+
+- name: Remove hostname-based root users (keep only localhost)
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: >-
+      DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+  when: mysql_disallow_root_login_remotely
+
+- name: Remove test database and access to it
+  when: mysql_remove_test_database
+
+  block:
+    - name: Remove test database
+      community.mysql.mysql_query:
+        login_unix_socket: "{{ mysql_socket }}"
+        query: DROP DATABASE IF EXISTS test;
+
+    - name: Remove privileges on test database
+      community.mysql.mysql_query:
+        login_unix_socket: "{{ mysql_socket }}"
+        query: DELETE FROM mysql.db WHERE Db='test' OR Db='test\_%';
+- name: Reload privilege tables
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: FLUSH PRIVILEGES;
+
+- name: Verify secure installation completed
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: >-
+      SELECT User, Host FROM mysql.user WHERE User = '' OR (User = 'root' AND Host != 'localhost');
+  register: insecure_users
+
+- name: Display security status
+  ansible.builtin.debug:
+    msg: >-
+      {{ 'MySQL secure installation completed successfully' if
+         insecure_users.rowcount == [0] else
+         'Warning: Some insecure users may still exist' }}

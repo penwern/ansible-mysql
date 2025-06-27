@@ -1,0 +1,28 @@
+# SPDX-License-Identifier: MIT-0
+---
+# handlers file for ansible-mysql
+
+- name: Restart mysql
+  ansible.builtin.systemd:
+    name: "{{ mysql_service_name }}"
+    state: restarted
+  listen: restart mysql
+
+- name: Reload mysql
+  ansible.builtin.systemd:
+    name: "{{ mysql_service_name }}"
+    state: reloaded
+  listen: reload mysql
+
+- name: Start mysql
+  ansible.builtin.systemd:
+    name: "{{ mysql_service_name }}"
+    state: started
+    enabled: true
+  listen: start mysql
+
+- name: Stop mysql
+  ansible.builtin.systemd:
+    name: "{{ mysql_service_name }}"
+    state: stopped
+  listen: stop mysql

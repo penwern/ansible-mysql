@@ -1,0 +1,113 @@
+# Ansible specific
+*.retry
+.ansible/
+ansible.log
+*.log
+
+# Vault files (encrypted secrets)
+*vault*
+*secret*
+*password*
+
+# Inventory files with sensitive data
+inventory/production
+inventory/staging
+hosts.ini
+hosts.yml
+
+# Group vars and host vars with secrets
+group_vars/*/vault.yml
+group_vars/*/secrets.yml
+host_vars/*/vault.yml
+host_vars/*/secrets.yml
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+tmp/
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.staging
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Virtual environments
+.venv
+.virtualenv
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Collections downloaded from Galaxy
+collections/
+ansible_collections/
+
+# Roles downloaded from Galaxy
+roles/external/
+roles/galaxy/
+
+# Generated documentation
+docs/_build/
+site/
+
+# Test outputs
+tests/output/
+*.coverage
+.coverage
+htmlcov/
+
+# Molecule
+.molecule/
+.cache/
+
+# Terraform (if used alongside Ansible)
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+
+# Local configuration overrides
+local.yml
+local.yaml
+override.yml
+override.yaml

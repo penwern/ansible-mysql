@@ -1,0 +1,125 @@
+# SPDX-License-Identifier: MIT-0
+---
+# Post-installation tasks for MySQL
+
+- name: Ensure MySQL directories exist with correct permissions
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('mysql') }}"
+    group: "{{ item.group | default('mysql') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: "{{ mysql_datadir }}", mode: "0750" }
+    - { path: "{{ mysql_log_dir }}", mode: "0750" }
+    - { path: "{{ mysql_config_include_dir }}" }
+    - { path: "{{ mysql_backup_dir }}", mode: "0750" }
+    - { path: /var/run/mysqld }
+  loop_control:
+    label: "{{ item.path }}"
+
+- name: Ensure MySQL log files exist with correct permissions
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: touch
+    owner: mysql
+    group: mysql
+    mode: "0640"
+    modification_time: preserve
+    access_time: preserve
+  loop:
+    - "{{ mysql_log_error }}"
+    - "{{ mysql_slow_query_log_file }}"
+  when: item != ""
+
+- name: Check if MySQL data directory is initialized
+  ansible.builtin.stat:
+    path: "{{ mysql_datadir }}/mysql"
+  register: mysql_datadir_initialized
+
+- name: Initialize MySQL data directory (if needed)
+  ansible.builtin.command: mysqld --initialize-insecure --user=mysql --datadir={{ mysql_datadir }}
+  when:
+    - not mysql_datadir_initialized.stat.exists
+    - mysql_root_password == ""
+  changed_when: true
+
+- name: Initialize MySQL data directory with root password (if needed)
+  ansible.builtin.command: mysqld --initialize --user=mysql --datadir={{ mysql_datadir }}
+  when:
+    - not mysql_datadir_initialized.stat.exists
+    - mysql_root_password != ""
+  register: mysql_init_output
+  changed_when: true
+
+- name: Extract temporary root password (if generated)
+  ansible.builtin.set_fact:
+    mysql_temp_root_password: >-
+      {{ mysql_init_output.stderr |
+         regex_search('temporary password.*: (.+)', '\\1') | first }}
+  when:
+    - mysql_init_output is defined
+    - mysql_init_output.stderr is defined
+    - "'temporary password' in mysql_init_output.stderr"
+
+- name: Start MySQL service for initial configuration
+  ansible.builtin.systemd:
+    name: "{{ mysql_service_name }}"
+    state: started
+    enabled: true
+
+- name: Wait for MySQL to be ready
+  ansible.builtin.wait_for:
+    port: "{{ mysql_port }}"
+    host: "{{ mysql_bind_address }}"
+    delay: 5
+    timeout: 60
+
+- name: Test MySQL connection
+  community.mysql.mysql_info:
+    login_unix_socket: "{{ mysql_socket }}"
+  register: mysql_connection_test
+  failed_when: false
+
+- name: Test MySQL connection with temporary password (if exists)
+  community.mysql.mysql_info:
+    login_user: "{{ mysql_root_username }}"
+    login_password: "{{ mysql_temp_root_password }}"
+  register: mysql_connection_temp
+  when:
+    - mysql_temp_root_password is defined
+    - mysql_connection_test.failed | default(false)
+  failed_when: false
+
+- name: Set initial root password (if using temporary password)
+  community.mysql.mysql_user:
+    login_user: "{{ mysql_root_username }}"
+    login_password: "{{ mysql_temp_root_password }}"
+    name: "{{ mysql_root_username }}"
+    password: "{{ mysql_root_password }}"
+    host_all: true
+    state: present
+  when:
+    - mysql_temp_root_password is defined
+    - mysql_root_password != ""
+    - mysql_connection_temp.succeeded | default(false)
+
+- name: Create .my.cnf file for root user
+  ansible.builtin.template:
+    src: root-my.cnf.j2
+    dest: "{{ mysql_root_home }}/.my.cnf"
+    owner: root
+    group: root
+    mode: "0600"
+  when: mysql_root_password != ""
+
+- name: Ensure MySQL service is running and enabled
+  ansible.builtin.systemd:
+    name: "{{ mysql_service_name }}"
+    state: started
+    enabled: true
+
+- name: Verify MySQL is responding to connections
+  community.mysql.mysql_info:
+    login_unix_socket: "{{ mysql_socket }}"
+  register: mysql_final_test

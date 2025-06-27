@@ -1,0 +1,33 @@
+# Ansible-lint configuration file
+---
+profile: production
+
+exclude_paths:
+  - .venv/
+  - .github/
+  - .git/
+  - .vscode/
+  - .pytest_cache/
+  - .coverage
+  - .coverage.*
+
+# List of additional kind:pattern to be added at the top of the default
+# match list (first match wins, so this allows override of default rules)
+kinds:
+  - playbook: molecule/*/converge.yml
+  - playbook: molecule/*/verify.yml
+  - playbook: molecule/*/side_effect.yml
+  - playbook: molecule/*/prepare.yml
+  - yaml: molecule/*/molecule.yml
+
+enable_list:
+  - args
+  - var-naming
+  - empty-string-compare
+  - no-log-password
+  - no-same-owner
+  - galaxy-version-incorrect
+  - jinja
+
+skip_list:
+  - skip_ansible_lint

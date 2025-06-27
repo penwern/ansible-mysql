@@ -1,0 +1,245 @@
+---
+- name: Verify
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    mysql_root_password: >-
+      {{ hostvars[inventory_hostname]['mysql_root_password'] }}
+
+  tasks:
+    - name: Check if MySQL is installed
+      ansible.builtin.stat:
+        path: /usr/sbin/mysqld
+      register: mysqld_binary
+
+    - name: Verify MySQL binary exists
+      ansible.builtin.assert:
+        that:
+          - mysqld_binary.stat.exists
+        fail_msg: MySQL binary not found
+        success_msg: MySQL binary found
+
+    - name: Check MySQL service status
+      ansible.builtin.service:
+        name: mysql
+        state: started
+      check_mode: true
+      register: mysql_service
+
+    - name: Verify MySQL service is running
+      ansible.builtin.assert:
+        that:
+          - mysql_service is not changed
+        fail_msg: MySQL service is not running
+        success_msg: MySQL service is running
+
+    - name: Check MySQL port is listening
+      ansible.builtin.wait_for:
+        port: 3306
+        host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        timeout: 10
+
+    - name: Test MySQL connection
+      community.mysql.mysql_info:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+      register: mysql_info_result
+
+    - name: Verify MySQL connection successful
+      ansible.builtin.assert:
+        that:
+          - mysql_info_result is succeeded
+        fail_msg: Cannot connect to MySQL
+        success_msg: MySQL connection successful
+
+    - name: Check MySQL version
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        query: SELECT VERSION() as version
+      register: mysql_version
+
+    - name: Display MySQL version
+      ansible.builtin.debug:
+        msg: >-
+          MySQL version: {{ mysql_version.query_result[0][0].version }}
+
+    - name: Verify test databases exist
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        query: SHOW DATABASES LIKE 'test_db'
+      register: test_db_exists
+
+    - name: Assert test database exists
+      ansible.builtin.assert:
+        that:
+          - test_db_exists.rowcount[0] == 1
+        fail_msg: Test database not found
+        success_msg: Test database exists
+
+    - name: Verify test users exist
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        query: >-
+          SELECT User FROM mysql.user  WHERE User IN ('test_user', 'readonly_user')
+      register: test_users_exist
+
+    - name: Assert test users exist
+      ansible.builtin.assert:
+        that:
+          - test_users_exist.rowcount[0] == 2
+        fail_msg: Test users not found
+        success_msg: Test users exist
+
+    - name: Test user authentication
+      community.mysql.mysql_query:
+        login_user: test_user
+        login_password: test_user_password
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        login_db: test_db
+        query: SELECT 1 as test_connection
+      register: test_user_login
+
+    - name: Verify test user can login
+      ansible.builtin.assert:
+        that:
+          - test_user_login is succeeded
+        fail_msg: Test user cannot login
+        success_msg: Test user login successful
+
+    - name: Check if anonymous users are removed
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        query: SELECT User FROM mysql.user WHERE User = ''
+      register: anonymous_users
+
+    - name: Verify no anonymous users exist
+      ansible.builtin.assert:
+        that:
+          - anonymous_users.rowcount[0] == 0
+        fail_msg: Anonymous users still exist
+        success_msg: Anonymous users removed
+
+    - name: Check if test database is removed
+      community.mysql.mysql_query:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        query: SHOW DATABASES LIKE 'test'
+      register: default_test_db
+
+    - name: Verify default test database is removed
+      ansible.builtin.assert:
+        that:
+          - default_test_db.rowcount[0] == 0
+        fail_msg: Default test database still exists
+        success_msg: Default test database removed
+
+    - name: Check MySQL configuration file exists
+      ansible.builtin.stat:
+        path: >-
+          {{ mysql_config_file | default('/etc/mysql/mysql.conf.d/mysqld.cnf') }}
+      register: mysql_config_stat
+
+    - name: Verify MySQL configuration file exists
+      ansible.builtin.assert:
+        that:
+          - mysql_config_stat.stat.exists
+        fail_msg: MySQL configuration file not found
+        success_msg: MySQL configuration file exists
+
+    - name: Check MySQL error log file exists
+      ansible.builtin.stat:
+        path: "{{ mysql_log_error | default('/var/log/mysql/error.log') }}"
+      register: mysql_error_log_stat
+
+    - name: Verify MySQL error log exists
+      ansible.builtin.assert:
+        that:
+          - mysql_error_log_stat.stat.exists
+        fail_msg: MySQL error log not found
+        success_msg: MySQL error log exists
+
+    - name: Check if slow query log is enabled and file exists
+      ansible.builtin.stat:
+        path: >-
+          {{ mysql_slow_query_log_file |
+             default('/var/log/mysql/mysql-slow.log') }}
+      register: mysql_slow_log_stat
+      when: mysql_slow_query_log_enabled | default(false)
+
+    - name: Verify slow query log file exists (if enabled)
+      ansible.builtin.assert:
+        that:
+          - mysql_slow_log_stat.stat.exists
+        fail_msg: Slow query log file not found
+        success_msg: Slow query log file exists
+      when: mysql_slow_query_log_enabled | default(false)
+
+    - name: Test user privileges
+      community.mysql.mysql_query:
+        login_user: test_user
+        login_password: test_user_password
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        login_db: test_db
+        query: >-
+          CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(50))
+      register: create_table_result
+      failed_when: false
+
+    - name: Verify test user has CREATE privileges
+      ansible.builtin.assert:
+        that:
+          - create_table_result is succeeded
+        fail_msg: Test user cannot create tables
+        success_msg: Test user has proper privileges
+
+    - name: Clean up test table
+      community.mysql.mysql_query:
+        login_user: test_user
+        login_password: test_user_password
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        login_db: test_db
+        query: DROP TABLE IF EXISTS test_table
+      failed_when: false
+
+    - name: Test readonly user privileges
+      community.mysql.mysql_query:
+        login_user: readonly_user
+        login_password: readonly_password
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        login_db: test_db
+        query: CREATE TABLE readonly_test (id INT)
+      register: readonly_create_result
+      failed_when: false
+
+    - name: Verify readonly user cannot create tables
+      ansible.builtin.assert:
+        that:
+          - readonly_create_result is failed or "CREATE command denied" in readonly_create_result.msg
+        fail_msg: Readonly user has too many privileges
+        success_msg: Readonly user has correct limited privileges
+
+    - name: Check MySQL data directory permissions
+      ansible.builtin.stat:
+        path: "{{ mysql_datadir | default('/var/lib/mysql') }}"
+      register: mysql_datadir_stat
+
+    - name: Verify MySQL data directory has correct permissions
+      ansible.builtin.assert:
+        that:
+          - mysql_datadir_stat.stat.exists
+          - mysql_datadir_stat.stat.pw_name == "mysql"
+          - mysql_datadir_stat.stat.gr_name == "mysql"
+        fail_msg: MySQL data directory has incorrect permissions
+        success_msg: MySQL data directory has correct permissions

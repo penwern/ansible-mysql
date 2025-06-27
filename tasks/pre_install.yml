@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: MIT-0
+---
+# Pre-installation tasks for MySQL
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  when: ansible_os_family == "Debian"
+
+- name: Check if MySQL is already installed
+  ansible.builtin.stat:
+    path: /usr/sbin/mysqld
+  register: mysql_installed
+
+- name: Display MySQL installation status
+  ansible.builtin.debug:
+    msg: >-
+      MySQL is {{ 'already installed' if mysql_installed.stat.exists else 'not installed'
+      }}
+
+- name: Set MySQL root password before installation (if not already installed)
+  ansible.builtin.debconf:
+    name: mysql-server
+    question: mysql-server/root_password
+    value: "{{ mysql_root_password }}"
+    vtype: password
+  when:
+    - ansible_os_family == "Debian"
+    - mysql_root_password != ""
+    - not mysql_installed.stat.exists
+  no_log: true
+
+- name: >-
+    Confirm MySQL root password before installation (if not already installed)
+  ansible.builtin.debconf:
+    name: mysql-server
+    question: mysql-server/root_password_again
+    value: "{{ mysql_root_password }}"
+    vtype: password
+  when:
+    - ansible_os_family == "Debian"
+    - mysql_root_password != ""
+    - not mysql_installed.stat.exists
+  no_log: true
+
+- name: Ensure required directories exist
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ item.owner | default('mysql') }}"
+    group: "{{ item.group | default('mysql') }}"
+    mode: "{{ item.mode | default('0755') }}"
+  loop:
+    - { path: "{{ mysql_datadir }}", mode: "0750" }
+    - { path: "{{ mysql_log_dir }}", mode: "0750" }
+    - { path: "{{ mysql_config_include_dir }}" }
+  loop_control:
+    label: "{{ item.path }}"
+  when: mysql_installed.stat.exists
+
+- name: Check available disk space for MySQL data directory
+  ansible.builtin.command: df -h {{ mysql_datadir | dirname }}
+  register: disk_space
+  changed_when: false
+
+- name: Display available disk space
+  ansible.builtin.debug:
+    msg: "Available disk space for MySQL: {{ disk_space.stdout_lines[1] }}"
+
+- name: Ensure system has enough memory for MySQL
+  ansible.builtin.fail:
+    msg: >-
+      System has insufficient memory. MySQL requires at least 512MB RAM.
+  when: ansible_memtotal_mb < 512
+
+- name: Check if AppArmor is enabled and configure MySQL profile
+  when: ansible_os_family == "Debian"
+  block:
+    - name: Check if AppArmor is running
+      ansible.builtin.systemd:
+        name: apparmor
+      register: apparmor_status
+      failed_when: false
+
+    - name: >-
+        Ensure MySQL AppArmor profile is in complain mode during installation
+      ansible.builtin.command: aa-complain usr.sbin.mysqld
+      when:
+        - apparmor_status.status.ActiveState == "active"
+        - not mysql_installed.stat.exists
+      changed_when: false
+      failed_when: false

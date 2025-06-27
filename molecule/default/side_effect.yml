@@ -1,0 +1,122 @@
+---
+- name: Side Effect
+  hosts: all
+  become: true
+  gather_facts: true
+
+  vars:
+    mysql_root_password: >-
+      {{ hostvars[inventory_hostname]['mysql_root_password'] }}
+
+  tasks:
+    - name: Test MySQL restart (simulate service restart)
+      ansible.builtin.systemd:
+        name: mysql
+        state: restarted
+
+    - name: Wait for MySQL to be ready after restart
+      ansible.builtin.wait_for:
+        port: 3306
+        host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        delay: 5
+        timeout: 60
+
+    - name: Test connection after restart
+      community.mysql.mysql_info:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+      register: mysql_restart_test
+
+    - name: Verify MySQL works after restart
+      ansible.builtin.assert:
+        that:
+          - mysql_restart_test is succeeded
+        fail_msg: MySQL connection failed after restart
+        success_msg: MySQL connection successful after restart
+
+    - name: Test creating additional database
+      community.mysql.mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        name: temporary_test_db
+        state: present
+
+    - name: Test creating temporary user
+      community.mysql.mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        name: temp_user
+        password: temp_password
+        priv: temporary_test_db.*:ALL
+        state: present
+
+    - name: Test temporary user can connect
+      community.mysql.mysql_query:
+        login_user: temp_user
+        login_password: temp_password
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        login_db: temporary_test_db
+        query: SELECT 1 as test_connection
+      register: temp_user_test
+
+    - name: Verify temporary user connection
+      ansible.builtin.assert:
+        that:
+          - temp_user_test is succeeded
+        fail_msg: Temporary user connection failed
+        success_msg: Temporary user connection successful
+
+    - name: Clean up temporary user
+      community.mysql.mysql_user:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        name: temp_user
+        state: absent
+
+    - name: Clean up temporary database
+      community.mysql.mysql_db:
+        login_user: root
+        login_password: "{{ mysql_root_password }}"
+        login_host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        name: temporary_test_db
+        state: absent
+
+    - name: Test MySQL configuration restart
+      ansible.builtin.systemd:
+        name: mysql
+        state: restarted
+
+    - name: Verify MySQL still responds after restart
+      ansible.builtin.wait_for:
+        port: 3306
+        host: "{{ mysql_bind_address | default('127.0.0.1') }}"
+        timeout: 30
+
+    - name: Test log file rotation simulation
+      ansible.builtin.shell: |
+        logrotate -f /etc/logrotate.d/mysql-server
+      failed_when: false
+      register: logrotate_test
+      changed_when: logrotate_test.rc == 0
+
+    - name: Display logrotate result
+      ansible.builtin.debug:
+        msg: >-
+          Logrotate test completed with return code: {{ logrotate_test.rc }}
+
+    - name: Verify MySQL error log still exists after logrotate
+      ansible.builtin.stat:
+        path: >-
+          {{ mysql_log_error | default('/var/log/mysql/error.log') }}
+      register: error_log_after_rotate
+
+    - name: Assert error log exists after rotation
+      ansible.builtin.assert:
+        that:
+          - error_log_after_rotate.stat.exists
+        fail_msg: Error log missing after logrotate
+        success_msg: Error log exists after logrotate

@@ -1,0 +1,81 @@
+# SPDX-License-Identifier: MIT-0
+---
+# MySQL user management tasks
+
+- name: Ensure MySQL users are present
+  community.mysql.mysql_user:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    host: "{{ item.host | default('localhost') }}"
+    password: "{{ item.password }}"
+    priv: "{{ item.priv | default('*.*:USAGE') }}"
+    state: "{{ item.state | default('present') }}"
+    check_implicit_admin: true
+    append_privs: "{{ item.append_privs | default('no') }}"
+    encrypted: "{{ item.encrypted | default('no') }}"
+    sql_log_bin: "{{ item.sql_log_bin | default('yes') }}"
+  loop: "{{ mysql_users }}"
+  when: mysql_users is defined
+  no_log: true
+  loop_control:
+    label: "{{ item.name }}@{{ item.host | default('localhost') }}"
+
+- name: Ensure MySQL users have correct privileges
+  community.mysql.mysql_user:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    host: "{{ item.host | default('localhost') }}"
+    priv: "{{ item.priv | default('*.*:USAGE') }}"
+    append_privs: "{{ item.append_privs | default('no') }}"
+    state: present
+  loop: "{{ mysql_users }}"
+  when:
+    - mysql_users is defined
+    - item.state | default('present') == 'present'
+  loop_control:
+    label: >-
+      {{ item.name }}@{{ item.host | default('localhost') }} - {{ item.priv | default('*.*:USAGE') }}
+
+- name: Remove MySQL users (if state is absent)
+  community.mysql.mysql_user:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    host: "{{ item.host | default('localhost') }}"
+    state: absent
+  loop: "{{ mysql_users }}"
+  when:
+    - mysql_users is defined
+    - item.state | default('present') == 'absent'
+  loop_control:
+    label: "{{ item.name }}@{{ item.host | default('localhost') }}"
+
+- name: Create replication user (if replication is configured)
+  community.mysql.mysql_user:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    host: "{{ item.host | default('%') }}"
+    password: "{{ item.password }}"
+    priv: "*.*:REPLICATION SLAVE"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ mysql_replication_user }}"
+  when:
+    - mysql_replication_role == "master"
+    - mysql_replication_user is defined
+    - mysql_replication_user | length > 0
+  no_log: true
+  loop_control:
+    label: "{{ item.name }}@{{ item.host | default('%') }}"
+
+- name: Get list of MySQL users
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: >-
+      SELECT User, Host FROM mysql.user WHERE User != '' ORDER BY User, Host;
+  register: mysql_users_list
+
+- name: Display current MySQL users
+  ansible.builtin.debug:
+    msg: >-
+      Current MySQL users: {{
+        mysql_users_list.query_result[0] | map(attribute='User') |
+        list | unique | join(', ') }}

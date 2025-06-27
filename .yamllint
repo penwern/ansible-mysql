@@ -1,0 +1,35 @@
+# .yamllint
+---
+extends: default
+
+# Don't lint these paths at all:
+ignore:
+  - .venv/
+  - .github/
+  - .git/
+  - .vscode/
+  - .pytest_cache/
+  - .coverage
+  - .coverage.*
+
+# Override only what Ansible-lint's --fix requires:
+rules:
+  comments:
+    # must be exactly 1 space before comment text
+    min-spaces-from-content: 1
+
+  # disallow "indented comment" rule
+  comments-indentation: false
+
+  braces:
+    # at most 1 space inside { ... }
+    max-spaces-inside: 1
+
+  line-length:
+    # set maximum line length to 120 characters
+    max: 120
+
+  octal-values:
+    # forbid both implicit (e.g. "0123") and explicit ("0o123")
+    forbid-implicit-octal: true
+    forbid-explicit-octal: true

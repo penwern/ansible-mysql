@@ -1,0 +1,103 @@
+# SPDX-License-Identifier: MIT-0
+---
+# MySQL installation tasks
+
+- name: Add MySQL APT repository (if enabled)
+  when:
+    - ansible_os_family == "Debian"
+    - mysql_apt_repo_enabled
+
+  block:
+    - name: Add MySQL APT key
+      ansible.builtin.apt_key:
+        keyserver: "{{ mysql_apt_repo_keyserver }}"
+        id: "{{ mysql_apt_repo_key }}"
+        state: present
+
+    - name: Add MySQL APT repository
+      ansible.builtin.apt_repository:
+        repo: >-
+          deb {{ mysql_apt_repo_url }} {{ ansible_distribution_release }} mysql-8.0
+        state: present
+        update_cache: true
+
+    - name: Pin MySQL version (if specified)
+      ansible.builtin.copy:
+        content: |
+          Package: mysql-server mysql-client mysql-common
+          Package: mysql-server-core-* mysql-client-core-*
+          Pin: version {{ mysql_version_pin }}*
+          Pin-Priority: 1001
+        dest: /etc/apt/preferences.d/mysql
+        mode: "0644"
+      when: mysql_version_pin != ""
+
+- name: Install MySQL packages
+  ansible.builtin.apt:
+    name: "{{ mysql_packages }}"
+    state: present
+    update_cache: true
+  register: mysql_install_result
+  until: mysql_install_result is succeeded
+  retries: 3
+  delay: 10
+  when: ansible_os_family == "Debian"
+
+- name: Install specific MySQL version (if pinned)
+  ansible.builtin.apt:
+    name: "{{ item }}={{ mysql_version_pin }}*"
+    state: present
+    force: true
+  loop: "{{ mysql_packages }}"
+  when:
+    - ansible_os_family == "Debian"
+    - mysql_version_pin != ""
+    - not mysql_apt_repo_enabled
+
+- name: Hold MySQL packages at current version (if version pinning enabled)
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop: "{{ mysql_packages }}"
+  when:
+    - ansible_os_family == "Debian"
+    - mysql_version_pin != ""
+
+- name: Ensure MySQL service is stopped for initial configuration
+  ansible.builtin.systemd:
+    name: "{{ mysql_service_name }}"
+    state: stopped
+  when: mysql_install_result.changed
+  notify: start mysql
+  tags:
+    - skip_ansible_lint
+
+- name: Check MySQL installation
+  ansible.builtin.command: mysql --version
+  register: mysql_version_check
+  changed_when: false
+
+- name: Display installed MySQL version
+  ansible.builtin.debug:
+    msg: "Installed MySQL version: {{ mysql_version_check.stdout }}"
+
+- name: Verify MySQL daemon executable
+  ansible.builtin.stat:
+    path: /usr/sbin/mysqld
+  register: mysqld_executable
+
+- name: Fail if MySQL daemon is not installed
+  ansible.builtin.fail:
+    msg: MySQL daemon executable not found. Installation may have failed.
+  when: not mysqld_executable.stat.exists
+
+- name: Get MySQL version details
+  ansible.builtin.command: mysqld --version
+  register: mysqld_version
+  changed_when: false
+
+- name: Store MySQL version for later use
+  ansible.builtin.set_fact:
+    mysql_installed_version: >-
+      {{ mysqld_version.stdout |
+         regex_search('([0-9]+\.[0-9]+\.[0-9]+)', '\1') | first }}

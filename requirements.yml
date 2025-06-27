@@ -1,0 +1,9 @@
+---
+# Galaxy dependencies for testing
+collections:
+  - name: community.mysql
+    version: ">=3.0.0"
+  - name: ansible.posix
+    version: ">=1.0.0"
+
+roles: []

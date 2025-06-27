@@ -1,0 +1,116 @@
+# SPDX-License-Identifier: MIT-0
+---
+# MySQL configuration tasks
+
+- name: Generate MySQL configuration from template
+  ansible.builtin.template:
+    src: my.cnf.j2
+    dest: "{{ mysql_config_file }}"
+    owner: root
+    group: root
+    mode: "0644"
+    backup: true
+  notify:
+    - restart mysql
+  register: mysql_config_updated
+
+- name: Validate MySQL configuration syntax
+  ansible.builtin.command: mysqld --help --verbose
+  register: mysql_config_check
+  changed_when: false
+  failed_when: mysql_config_check.rc != 0
+
+- name: Create custom configuration directory
+  ansible.builtin.file:
+    path: "{{ mysql_config_include_dir }}"
+    state: directory
+    owner: mysql
+    group: mysql
+    mode: "0755"
+
+- name: Configure MySQL SSL (if enabled)
+  when: mysql_ssl_enabled
+
+  block:
+    - name: Copy SSL certificates
+      ansible.builtin.copy:
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+        owner: mysql
+        group: mysql
+        mode: "0600"
+      loop:
+        - src: "{{ mysql_ssl_ca }}"
+          dest: /etc/mysql/ssl/ca.pem
+        - src: "{{ mysql_ssl_cert }}"
+          dest: /etc/mysql/ssl/server-cert.pem
+        - src: "{{ mysql_ssl_key }}"
+          dest: /etc/mysql/ssl/server-key.pem
+      when: item.src != ""
+      notify:
+        - restart mysql
+
+    - name: Create SSL configuration file
+      ansible.builtin.template:
+        src: ssl.cnf.j2
+        dest: "{{ mysql_config_include_dir }}/ssl.cnf"
+        owner: root
+        group: root
+        mode: "0644"
+      notify:
+        - restart mysql
+- name: Configure MySQL replication (if enabled)
+  ansible.builtin.template:
+    src: replication.cnf.j2
+    dest: "{{ mysql_config_include_dir }}/replication.cnf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: mysql_replication_role != ""
+  notify:
+    - restart mysql
+
+- name: Configure MySQL performance schema (if enabled)
+  ansible.builtin.template:
+    src: performance_schema.cnf.j2
+    dest: "{{ mysql_config_include_dir }}/performance_schema.cnf"
+    owner: root
+    group: root
+    mode: "0644"
+  when: mysql_enable_performance_schema
+  notify:
+    - restart mysql
+
+- name: Set MySQL variables dynamically (without restart)
+  community.mysql.mysql_variables:
+    login_unix_socket: "{{ mysql_socket }}"
+    variable: "{{ item.key }}"
+    value: "{{ item.value }}"
+  loop:
+    - key: max_connections
+      value: "{{ mysql_max_connections }}"
+    - key: slow_query_log
+      value: "{{ 'ON' if mysql_slow_query_log_enabled else 'OFF' }}"
+    - key: long_query_time
+      value: "{{ mysql_slow_query_time }}"
+  failed_when: false
+
+- name: Configure log rotation for MySQL
+  ansible.builtin.template:
+    src: mysql.logrotate.j2
+    dest: /etc/logrotate.d/mysql-server
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Test MySQL configuration
+  ansible.builtin.command: >-
+    mysqld --defaults-file={{ mysql_config_file }} --help --verbose
+  register: config_test
+  changed_when: false
+  failed_when: config_test.rc != 0
+
+- name: Display configuration status
+  ansible.builtin.debug:
+    msg: >-
+      MySQL configuration {{ 'updated' if mysql_config_updated.changed else 'is current' }}

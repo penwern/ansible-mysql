@@ -1,0 +1,45 @@
+# {{ ansible_managed }}
+# Logrotate configuration for MySQL
+
+{{ mysql_log_error }} {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /usr/bin/mysql -e 'select @@global.long_query_time into @lqt_save; set global long_query_time=2000; select sleep(2); FLUSH LOGS; select sleep(2); set global long_query_time=@lqt_save;'
+    endscript
+    create 640 mysql mysql
+}
+
+{% if mysql_slow_query_log_enabled %}
+{{ mysql_slow_query_log_file }} {
+    daily
+    rotate {{ mysql_backup_retention_days | default(7) }}
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /usr/bin/mysql -e 'select @@global.long_query_time into @lqt_save; set global long_query_time=2000; select sleep(2); FLUSH LOGS; select sleep(2); set global long_query_time=@lqt_save;'
+    endscript
+    create 640 mysql mysql
+}
+{% endif %}
+
+/var/log/mysql/mysql-bin.* {
+    daily
+    rotate 7
+    missingok
+    notifempty
+    compress
+    delaycompress
+    sharedscripts
+    postrotate
+        /usr/bin/mysql -e 'FLUSH LOGS;'
+    endscript
+}

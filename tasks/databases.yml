@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: MIT-0
+---
+# MySQL database management tasks
+
+- name: Ensure MySQL databases are present
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    collation: "{{ item.collation | default('utf8mb4_unicode_ci') }}"
+    encoding: "{{ item.encoding | default('utf8mb4') }}"
+    state: "{{ item.state | default('present') }}"
+  loop: "{{ mysql_databases }}"
+  when: mysql_databases is defined
+  register: mysql_db_creation
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Import SQL dump (if specified)
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    state: import
+    target: "{{ item.import_file }}"
+  loop: "{{ mysql_databases }}"
+  when:
+    - mysql_databases is defined
+    - item.import_file is defined
+    - item.import_file != ""
+    - item.state | default('present') == 'present'
+  loop_control:
+    label: "{{ item.name }} - {{ item.import_file | default('no import') }}"
+
+- name: Remove MySQL databases (if state is absent)
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    state: absent
+  loop: "{{ mysql_databases }}"
+  when:
+    - mysql_databases is defined
+    - item.state | default('present') == 'absent'
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Create database backup (if enabled)
+  community.mysql.mysql_db:
+    login_unix_socket: "{{ mysql_socket }}"
+    name: "{{ item.name }}"
+    state: dump
+    target: >-
+      {{ mysql_backup_dir }}/{{ item.name }}_{{ ansible_date_time.date }}.sql
+  loop: "{{ mysql_databases }}"
+  when:
+    - mysql_databases is defined
+    - mysql_backup_enabled
+    - item.state | default('present') == 'present'
+    - item.backup | default(true)
+  loop_control:
+    label: "{{ item.name }}"
+
+- name: Set database-specific configurations
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: "{{ item.config_query }}"
+  loop: "{{ mysql_databases }}"
+  when:
+    - mysql_databases is defined
+    - item.config_query is defined
+    - item.config_query != ""
+    - item.state | default('present') == 'present'
+  loop_control:
+    label: "{{ item.name }} - config"
+
+- name: Get list of MySQL databases
+  community.mysql.mysql_query:
+    login_unix_socket: "{{ mysql_socket }}"
+    query: SHOW DATABASES;
+  register: mysql_databases_list
+
+- name: Display current MySQL databases
+  ansible.builtin.debug:
+    msg: >-
+      Current MySQL databases: {{
+        mysql_databases_list.query_result[0] | map(attribute='Database') | list |
+        reject('match', '^(information_schema|performance_schema|mysql|sys)$') |
+        list | join(', ') }}
+
+- name: Verify database creation
+  ansible.builtin.debug:
+    msg: >-
+      Database {{ item.item.name }} was {{ 'created' if item.changed else 'already present' }}
+  loop: "{{ mysql_db_creation.results }}"
+  when: mysql_db_creation is defined
+  loop_control:
+    label: "{{ item.item.name }}"

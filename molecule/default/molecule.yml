@@ -1,0 +1,83 @@
+---
+dependency:
+  name: galaxy
+
+driver:
+  name: docker
+
+platforms:
+  - name: ubuntu2404-mysql
+    image: geerlingguy/docker-ubuntu2404-ansible:latest
+    privileged: true
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    command: /sbin/init
+    tmpfs:
+      - /run
+      - /tmp
+    environment:
+      container: docker
+    groups:
+      - mysql_servers
+
+provisioner:
+  name: ansible
+  config_file: ../ansible.cfg
+  inventory:
+    host_vars:
+      ubuntu2404-mysql:
+        mysql_root_password: test_password_789!
+        mysql_bind_address: 0.0.0.0
+    group_vars:
+      mysql_servers:
+        mysql_users:
+          - name: test_user
+            host: localhost
+            password: test_user_password
+            priv: test_db.*:ALL
+            state: present
+          - name: readonly_user
+            host: localhost
+            password: readonly_password
+            priv: test_db.*:SELECT
+            state: present
+        mysql_databases:
+          - name: test_db
+            collation: utf8mb4_unicode_ci
+            encoding: utf8mb4
+            state: present
+          - name: analytics_db
+            collation: utf8mb4_unicode_ci
+            encoding: utf8mb4
+            state: present
+        mysql_slow_query_log_enabled: true
+        mysql_validate_password_enable: true
+        mysql_validate_password_policy: LOW
+        mysql_validate_password_length: 6
+  config_options:
+    defaults:
+      callbacks_enabled: profile_tasks,timer
+      stdout_callback: yaml
+      bin_ansible_callbacks: true
+      remote_tmp: /tmp/.ansible/tmp
+      pipelining: true
+  lint: |
+    set -e
+    yamllint .
+    ansible-lint
+
+verifier:
+  name: ansible
+
+scenario:
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - side_effect
+    - verify
+    - destroy

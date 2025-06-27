@@ -1,0 +1,26 @@
+# {{ ansible_managed }}
+# MySQL client configuration for root user
+# This file allows the root user to connect to MySQL without specifying credentials
+
+[client]
+user = {{ mysql_root_username }}
+password = {{ mysql_root_password }}
+socket = {{ mysql_socket }}
+
+[mysql]
+user = {{ mysql_root_username }}
+password = {{ mysql_root_password }}
+socket = {{ mysql_socket }}
+
+[mysqldump]
+user = {{ mysql_root_username }}
+password = {{ mysql_root_password }}
+socket = {{ mysql_socket }}
+single-transaction
+routines
+triggers
+
+[mysqladmin]
+user = {{ mysql_root_username }}
+password = {{ mysql_root_password }}
+socket = {{ mysql_socket }}

@@ -1,0 +1,113 @@
+# {{ ansible_managed }}
+# MySQL configuration file
+#
+# This file is managed by Ansible. Do not edit manually.
+
+[mysqld]
+# Basic settings
+user = mysql
+pid-file = {{ mysql_pid_file }}
+socket = {{ mysql_socket }}
+port = {{ mysql_port }}
+basedir = /usr
+datadir = {{ mysql_datadir }}
+tmpdir = /tmp
+lc-messages-dir = /usr/share/mysql
+skip-external-locking
+
+# Fine tuning
+key_buffer_size = {{ mysql_key_buffer_size }}
+max_allowed_packet = {{ mysql_max_allowed_packet }}
+thread_stack = 192K
+thread_cache_size = {{ mysql_thread_cache_size }}
+max_connections = {{ mysql_max_connections }}
+table_open_cache = {{ mysql_table_open_cache }}
+sort_buffer_size = {{ mysql_sort_buffer_size }}
+read_buffer_size = {{ mysql_read_buffer_size }}
+read_rnd_buffer_size = {{ mysql_read_rnd_buffer_size }}
+tmp_table_size = {{ mysql_tmp_table_size }}
+max_heap_table_size = {{ mysql_max_heap_table_size }}
+group_concat_max_len = {{ mysql_group_concat_max_len }}
+join_buffer_size = {{ mysql_join_buffer_size }}
+
+# MyISAM settings (only if needed for legacy compatibility)
+{% if mysql_enable_myisam | default(false) %}
+myisam_sort_buffer_size = {{ mysql_myisam_sort_buffer_size }}
+{% endif %}
+
+# Logging and replication
+log_error = {{ mysql_log_error }}
+{% if mysql_slow_query_log_enabled %}
+slow_query_log = 1
+slow_query_log_file = {{ mysql_slow_query_log_file }}
+long_query_time = {{ mysql_slow_query_time }}
+{% else %}
+slow_query_log = 0
+{% endif %}
+
+# Server ID and binary logging
+server-id = {{ mysql_server_id }}
+log_bin = /var/log/mysql/mysql-bin.log
+max_binlog_size = {{ mysql_max_binlog_size }}
+
+# Binary log expiration - MySQL 8.0+ compatible
+{% if mysql_version is defined and mysql_version is version('8.0', '>=') %}
+binlog_expire_logs_seconds = {{ mysql_binlog_expire_logs_seconds | default(604800) }}
+{% else %}
+expire_logs_days = {{ mysql_expire_logs_days | default(7) }}
+{% endif %}
+
+# InnoDB settings - MySQL 8.0+ compatible
+innodb_file_per_table = {{ mysql_innodb_file_per_table }}
+innodb_buffer_pool_size = {{ mysql_innodb_buffer_pool_size }}
+innodb_log_buffer_size = {{ mysql_innodb_log_buffer_size }}
+innodb_flush_log_at_trx_commit = {{ mysql_innodb_flush_log_at_trx_commit }}
+innodb_lock_wait_timeout = {{ mysql_innodb_lock_wait_timeout }}
+
+# InnoDB redo log settings - MySQL 8.0+ compatible
+{% if mysql_version is defined and mysql_version is version('8.0', '>=') %}
+innodb_redo_log_capacity = {{ mysql_innodb_redo_log_capacity | default(134217728) }}
+{% else %}
+innodb_log_file_size = {{ mysql_innodb_log_file_size }}
+{% endif %}
+
+# Network settings
+bind-address = {{ mysql_bind_address }}
+
+{% if mysql_ssl_enabled | default(false) %}
+# SSL settings
+ssl-ca = /etc/mysql/ssl/ca.pem
+ssl-cert = /etc/mysql/ssl/server-cert.pem
+ssl-key = /etc/mysql/ssl/server-key.pem
+{% endif %}
+
+{% if mysql_enable_performance_schema | default(true) %}
+# Performance Schema
+performance_schema = ON
+{% else %}
+performance_schema = OFF
+{% endif %}
+
+# Character set
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# Security settings for MySQL 8.0
+{% if mysql_version is defined and mysql_version is version('8.0', '>=') %}
+# MySQL 8.0 uses caching_sha2_password by default
+default_authentication_plugin = caching_sha2_password
+{% endif %}
+
+# Include additional configuration files
+!includedir {{ mysql_config_include_dir }}/
+
+[mysql]
+default-character-set = utf8mb4
+
+[mysqldump]
+single-transaction
+routines
+triggers
+
+[client]
+default-character-set = utf8mb4

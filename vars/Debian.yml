@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT-0
+---
+# OS-specific variables for Ubuntu
+
+mysql_service_name: mysql
+mysql_daemon: mysqld
+mysql_socket: /var/run/mysqld/mysqld.sock
+mysql_pid_file: /var/run/mysqld/mysqld.pid
+mysql_config_file: /etc/mysql/mysql.conf.d/mysqld.cnf
+mysql_config_include_dir: /etc/mysql/conf.d
+mysql_datadir: /var/lib/mysql
+mysql_log_dir: /var/log/mysql
+mysql_log_error: /var/log/mysql/error.log
+
+# Package names specific to Ubuntu
+mysql_packages:
+  - mysql-server
+  - mysql-client
+  - python3-mysqldb
+
+# System user and group
+mysql_user: mysql
+mysql_group: mysql
+
+# Debian-specific configuration paths
+mysql_debian_config_file: /etc/mysql/debian.cnf
+mysql_apparmor_profile: /etc/apparmor.d/usr.sbin.mysqld

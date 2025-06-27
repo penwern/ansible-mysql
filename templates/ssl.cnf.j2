@@ -1,0 +1,14 @@
+# {{ ansible_managed }}
+# MySQL SSL Configuration
+
+[mysqld]
+# SSL settings
+ssl-ca = /etc/mysql/ssl/ca.pem
+ssl-cert = /etc/mysql/ssl/server-cert.pem
+ssl-key = /etc/mysql/ssl/server-key.pem
+
+# Require SSL for connections
+require_secure_transport = ON
+
+# SSL cipher configuration
+ssl-cipher = ECDHE-RSA-AES128-GCM-SHA256:ECDHE-RSA-AES256-GCM-SHA384:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384

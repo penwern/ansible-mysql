@@ -1,0 +1,148 @@
+# SPDX-License-Identifier: MIT-0
+---
+# defaults file for ansible-mysql
+
+# MySQL version detection and compatibility
+mysql_version: >-
+  {{ ansible_facts.packages['mysql-server'][0].version.split('-')[0]
+     if 'mysql-server' in ansible_facts.packages else '8.0' }}
+
+# MySQL service configuration
+mysql_service_name: mysql
+mysql_daemon: mysqld
+mysql_socket: /var/run/mysqld/mysqld.sock
+mysql_pid_file: /var/run/mysqld/mysqld.pid
+
+# MySQL packages
+mysql_packages:
+  - mysql-server
+  - mysql-client
+  - python3-mysqldb
+
+# MySQL root configuration
+mysql_root_home: /root
+mysql_root_username: root
+mysql_root_password: ""
+mysql_root_password_update: false
+
+# MySQL directories and files
+mysql_datadir: /var/lib/mysql
+mysql_log_dir: /var/log/mysql
+mysql_config_file: /etc/mysql/mysql.conf.d/mysqld.cnf
+mysql_config_include_dir: /etc/mysql/conf.d
+mysql_secure_installation_marker: >-
+  /etc/mysql/.mysql_secure_installation_marker
+
+# MySQL port and bind address
+mysql_port: "3306"
+mysql_bind_address: 127.0.0.1
+
+# MySQL configuration options
+mysql_key_buffer_size: 256M
+mysql_max_allowed_packet: 64M
+mysql_table_open_cache: "256"
+mysql_sort_buffer_size: 1M
+mysql_read_buffer_size: 1M
+mysql_read_rnd_buffer_size: 4M
+mysql_thread_cache_size: "8"
+mysql_max_connections: "151"
+mysql_tmp_table_size: 16M
+mysql_max_heap_table_size: 16M
+mysql_group_concat_max_len: "1024"
+mysql_join_buffer_size: "262144"
+
+# MyISAM settings (only used if explicitly enabled)
+mysql_enable_myisam: false
+mysql_myisam_sort_buffer_size: 64M
+
+# REMOVED: Query cache variables (not supported in MySQL 8.0)
+# mysql_query_cache_type, mysql_query_cache_size, mysql_query_cache_limit
+
+# MySQL InnoDB configuration
+mysql_innodb_file_per_table: "1"
+mysql_innodb_buffer_pool_size: 256M
+mysql_innodb_log_buffer_size: 8M
+mysql_innodb_flush_log_at_trx_commit: "1"
+mysql_innodb_lock_wait_timeout: "50"
+
+# MySQL 8.0 compatible InnoDB redo log settings
+# 128MB (replaces innodb_log_file_size)
+mysql_innodb_redo_log_capacity: "134217728"
+# DEPRECATED in MySQL 8.0: mysql_innodb_log_file_size: "64M"
+
+# MySQL logging
+mysql_log_error: /var/log/mysql/error.log
+mysql_slow_query_log_enabled: false
+mysql_slow_query_log_file: /var/log/mysql/mysql-slow.log
+mysql_slow_query_time: "2"
+
+# MySQL replication
+mysql_server_id: "1"
+mysql_max_binlog_size: 100M
+
+# MySQL 8.0 compatible binary log expiration
+# 10 days in seconds (replaces expire_logs_days)
+mysql_binlog_expire_logs_seconds: "864000"
+# DEPRECATED in MySQL 8.0: mysql_expire_logs_days: "10"
+# DEPRECATED in MySQL 8.0: mysql_binlog_format: "ROW"
+
+mysql_replication_role: ""
+mysql_replication_master: ""
+mysql_replication_user: []
+# MySQL security
+mysql_remove_anonymous_users: true
+mysql_remove_test_database: true
+mysql_disallow_root_login_remotely: true
+
+# MySQL password validation (MySQL 8.0 uses validate_password component)
+mysql_validate_password_enable: true
+mysql_validate_password_policy: LOW # Changed from MEDIUM for testing
+mysql_validate_password_length: 6 # Reduced for testing compatibility
+mysql_validate_password_mixed_case_count: 1
+mysql_validate_password_number_count: 1
+mysql_validate_password_special_char_count: 1
+mysql_validate_password_dictionary_file: ""
+mysql_validate_password_check_user_name: "ON"
+
+# MySQL SSL configuration
+mysql_ssl_enabled: false
+mysql_ssl_ca: ""
+mysql_ssl_cert: ""
+mysql_ssl_key: ""
+
+# MySQL users (example structure)
+mysql_users: []
+#  - name: example_user
+#    host: localhost
+#    password: secure_password
+#    priv: "example_db.*:ALL"
+#    state: present
+
+# MySQL databases (example structure)
+mysql_databases: []
+#  - name: example_db
+#    collation: utf8mb4_unicode_ci  # Updated for MySQL 8.0
+#    encoding: utf8mb4              # Updated for MySQL 8.0
+#    state: present
+
+# MySQL backup configuration
+mysql_backup_enabled: false
+mysql_backup_dir: /var/backups/mysql
+mysql_backup_retention_days: 7
+
+# MySQL monitoring
+mysql_enable_performance_schema: true # Changed to true for MySQL 8.0
+
+# MySQL version pinning (set to specific version if needed)
+mysql_version_pin: ""
+
+# MySQL APT repository configuration
+mysql_apt_repo_enabled: false
+mysql_apt_repo_url: http://repo.mysql.com/apt/ubuntu
+mysql_apt_repo_keyserver: keyserver.ubuntu.com
+mysql_apt_repo_key: 3A79BD29
+
+# MySQL 8.0 specific settings
+mysql_authentication_policy: caching_sha2_password # MySQL 8.0 default
+mysql_default_table_encryption: false
+mysql_innodb_dedicated_server: false

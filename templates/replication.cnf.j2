@@ -1,0 +1,36 @@
+# {{ ansible_managed }}
+# MySQL Replication Configuration
+
+[mysqld]
+# Server identification
+server-id = {{ mysql_server_id }}
+
+{% if mysql_replication_role == 'master' %}
+# Master configuration
+log-bin = mysql-bin
+binlog-format = {{ mysql_binlog_format }}
+expire_logs_days = {{ mysql_expire_logs_days }}
+max_binlog_size = {{ mysql_max_binlog_size }}
+
+# Optional: sync settings for durability
+sync_binlog = 1
+innodb_flush_log_at_trx_commit = 1
+
+{% elif mysql_replication_role == 'slave' %}
+# Slave configuration
+relay-log = mysql-relay-bin
+log_slave_updates = 1
+read_only = 1
+
+# Slave options
+slave_skip_errors = 1062,1053
+slave_net_timeout = 60
+
+{% if mysql_replication_master != '' %}
+# Master connection info (set via CHANGE MASTER command)
+# CHANGE MASTER TO MASTER_HOST='{{ mysql_replication_master }}',
+#                  MASTER_USER='replication_user',
+#                  MASTER_PASSWORD='replication_password';
+{% endif %}
+
+{% endif %}
