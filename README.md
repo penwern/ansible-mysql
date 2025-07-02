@@ -301,7 +301,6 @@ The role includes GitHub Actions workflows that automatically:
 - Test across multiple platforms and Ansible versions
 - Perform security scans
 - Validate role structure
-- Generate documentation
 
 ### Manual Testing
 
