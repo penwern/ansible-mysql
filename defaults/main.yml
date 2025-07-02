@@ -96,8 +96,8 @@ mysql_disallow_root_login_remotely: true
 
 # MySQL password validation (MySQL 8.0 uses validate_password component)
 mysql_validate_password_enable: true
-mysql_validate_password_policy: LOW # Changed from MEDIUM for testing
-mysql_validate_password_length: 6 # Reduced for testing compatibility
+mysql_validate_password_policy: LOW
+mysql_validate_password_length: 6
 mysql_validate_password_mixed_case_count: 1
 mysql_validate_password_number_count: 1
 mysql_validate_password_special_char_count: 1
