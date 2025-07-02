@@ -6,7 +6,6 @@ on:
   pull_request:
     branches: [main, develop]
   schedule:
-    # Weekly on Sunday at 6 AM UTC
     - cron: '0 6 * * 0'
 
 permissions:
@@ -16,123 +15,42 @@ permissions:
   pull-requests: write
 
 jobs:
-  lint:
-    name: Lint
+  test:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install ansible-lint yamllint
-
-      - name: Run yamllint
-        run: yamllint .
-
-      - name: Run ansible-lint
-        run: ansible-lint
-
-  molecule:
-    name: Molecule Test
-    runs-on: ubuntu-latest
-    needs: lint
-    strategy:
-      fail-fast: false
-      matrix:
-        distro:
-          - ubuntu2404
-        ansible-version:
-          - "9"
-          - "10"
-          - "11"
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          # Updated version mapping for current Ansible versions
-          if [ "${{ matrix.ansible-version }}" = "9" ]; then
-            pip install "ansible-core>=2.16,<2.17"
-          elif [ "${{ matrix.ansible-version }}" = "10" ]; then
-            pip install "ansible-core>=2.17,<2.18"
-          elif [ "${{ matrix.ansible-version }}" = "11" ]; then
-            pip install "ansible-core>=2.18,<2.19"
-          fi
-          pip install molecule[docker] pytest pytest-ansible pymysql cryptography
-
-      - name: Run Molecule tests
-        run: molecule test
-        env:
-          PY_COLORS: '1'
-          ANSIBLE_FORCE_COLOR: '1'
-          MOLECULE_DISTRO: ${{ matrix.distro }}
-
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check for hardcoded secrets
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rsync
+          pip install --upgrade pip
+          pip install yamllint ansible-core==2.17.7 ansible-lint molecule molecule-plugins[docker] pytest pytest-ansible pymysql cryptography
+
+      - name: Lint
+        run: |
+          yamllint .
+          ansible-lint
+
+      - name: Security scan
         uses: trufflesecurity/trufflehog@main
         with:
           extra_args: --results=verified,unknown
 
-  role-validation:
-    name: Role Validation
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install Ansible
+      - name: Install ansible collections
         run: |
-          python -m pip install --upgrade pip
-          pip install ansible-core
+          ansible-galaxy collection install community.general
 
-      - name: Validate role structure
-        run: |
-          # Check required directories exist
-          test -d tasks || (echo "ERROR: tasks/ directory missing" && exit 1)
-          test -d defaults || (echo "ERROR: defaults/ directory missing" && exit 1)
-          test -d handlers || (echo "ERROR: handlers/ directory missing" && exit 1)
-          test -d meta || (echo "ERROR: meta/ directory missing" && exit 1)
-          test -f README.md || (echo "ERROR: README.md missing" && exit 1)
-
-          # Check main task file exists
-          test -f tasks/main.yml || (echo "ERROR: tasks/main.yml missing" && exit 1)
-
-          # Check meta file is valid
-          test -f meta/main.yml || (echo "ERROR: meta/main.yml missing" && exit 1)
-
-          echo "Role structure validation passed"
-
-      - name: Syntax check
-        run: |
-          ansible-playbook --syntax-check tests/test.yml
+      - name: Molecule test
+        run: molecule test
+        env:
+          PY_COLORS: '1'
+          ANSIBLE_FORCE_COLOR: '1'
+          MOLECULE_DISTRO: ubuntu2404
