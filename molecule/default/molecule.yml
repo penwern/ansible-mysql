@@ -1,7 +1,4 @@
 ---
-dependency:
-  name: galaxy
-
 driver:
   name: docker
 
@@ -9,6 +6,24 @@ platforms:
   - name: ubuntu2404-mysql
     image: geerlingguy/docker-ubuntu2404-ansible:latest
     privileged: true
+    capabilities:
+      - SYS_ADMIN
+    volumes:
+      - /sys/fs/cgroup:/sys/fs/cgroup:rw
+    command: /sbin/init
+    tmpfs:
+      - /run
+      - /tmp
+    environment:
+      container: docker
+    groups:
+      - mysql_servers
+
+  - name: ubuntu2204-mysql
+    image: geerlingguy/docker-ubuntu2204-ansible:latest
+    privileged: true
+    capabilities:
+      - SYS_ADMIN
     volumes:
       - /sys/fs/cgroup:/sys/fs/cgroup:rw
     command: /sbin/init
@@ -26,6 +41,9 @@ provisioner:
   inventory:
     host_vars:
       ubuntu2404-mysql:
+        mysql_root_password: test_password_789!
+        mysql_bind_address: 0.0.0.0
+      ubuntu2204-mysql:
         mysql_root_password: test_password_789!
         mysql_bind_address: 0.0.0.0
     group_vars:
@@ -54,17 +72,6 @@ provisioner:
         mysql_validate_password_enable: true
         mysql_validate_password_policy: LOW
         mysql_validate_password_length: 6
-  config_options:
-    defaults:
-      callbacks_enabled: profile_tasks,timer
-      stdout_callback: yaml
-      bin_ansible_callbacks: true
-      remote_tmp: /tmp/.ansible/tmp
-      pipelining: true
-  lint: |
-    set -e
-    yamllint .
-    ansible-lint
 
 verifier:
   name: ansible
