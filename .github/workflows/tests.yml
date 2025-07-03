@@ -17,6 +17,10 @@ permissions:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    env:
+      PIP_ROOT_USER_ACTION: ignore
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,12 +31,29 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Cache Ansible collections
+        uses: actions/cache@v4
+        with:
+          path: ~/.ansible/collections
+          key: ${{ runner.os }}-ansible-collections-${{ hashFiles('requirements.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-ansible-collections-
+
+      - name: Install system dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y rsync
+          sudo apt-get update -qq
+          sudo apt-get install -y  rsync
+
+      - name: Install Python dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
           pip install --upgrade pip
-          pip install yamllint ansible-core==2.17.7 ansible-lint molecule molecule-plugins[docker] pytest pytest-ansible pymysql cryptography
+          pip install -r requirements-dev.txt
+
+      - name: Activate virtual environment
+        run: |
+          echo "${{ github.workspace }}/.venv/bin" >> $GITHUB_PATH
 
       - name: Lint
         run: |
@@ -40,17 +61,16 @@ jobs:
           ansible-lint
 
       - name: Security scan
-        uses: trufflesecurity/trufflehog@main
+        uses: trufflesecurity/trufflehog@v3.89.2
         with:
           extra_args: --results=verified,unknown
 
       - name: Install ansible collections
         run: |
-          ansible-galaxy collection install community.general
+          ansible-galaxy collection install -r requirements.yml
 
       - name: Molecule test
         run: molecule test
         env:
           PY_COLORS: '1'
           ANSIBLE_FORCE_COLOR: '1'
-          MOLECULE_DISTRO: ubuntu2404
