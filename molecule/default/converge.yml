@@ -4,25 +4,6 @@
   become: true
   gather_facts: true
 
-  pre_tasks:
-    - name: Update apt cache (Ubuntu)
-      ansible.builtin.apt:
-        update_cache: true
-        cache_valid_time: 600
-      when: ansible_os_family == "Debian"
-
-    - name: Install Python3 and pip
-      ansible.builtin.package:
-        name:
-          - python3
-          - python3-pip
-        state: present
-
-    - name: Install PyMySQL Python package
-      ansible.builtin.pip:
-        name: pymysql
-        state: present
-
   roles:
     - role: penwern.mysql
 
@@ -44,3 +25,4 @@
     - name: Display MySQL service status
       ansible.builtin.debug:
         var: mysql_service_status
+      no_log: true

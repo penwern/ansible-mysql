@@ -9,6 +9,7 @@
       ansible.builtin.apt:
         update_cache: true
         cache_valid_time: 600
+        lock_timeout: 120
       when: ansible_os_family == "Debian"
 
     - name: Install required system packages
@@ -18,7 +19,6 @@
           - curl
           - gnupg
           - lsb-release
-          - apt-transport-https
           - software-properties-common
         state: present
       when: ansible_os_family == "Debian"
