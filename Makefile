@@ -11,7 +11,7 @@ help: ## Show this help message
 
 install: ## Install required dependencies
 	pip install --upgrade pip
-	pip install molecule[docker] ansible-core ansible-lint yamllint pytest pymysql cryptography
+	pip install -r requirements-dev.txt
 
 test: ## Run basic molecule test
 	molecule test
@@ -73,24 +73,14 @@ role-check: ## Check role structure and best practices
 
 install-dev: ## Install development dependencies
 	pip install --upgrade pip
-	pip install \
-		molecule[docker] \
-		ansible-core \
-		ansible-lint \
-		yamllint \
-		pytest \
-		pytest-ansible \
-		pytest-xdist \
-		pymysql \
-		cryptography \
-		pre-commit
+	pip install -r requirements-dev.txt
 	pre-commit install
 
 pre-commit: ## Run pre-commit hooks
 	pre-commit run --all-files
 
-requirements: ## Generate requirements.txt
-	pip freeze > requirements-dev.txt
+requirements: ## Generate locked requirements file
+	pip-compile requirements-dev.in --output-file requirements-dev.txt
 
 info: ## Show environment information
 	@echo "Python version: $$(python --version)"
@@ -101,3 +91,14 @@ info: ## Show environment information
 # Platform-specific tests
 test-ubuntu2404: ## Test only Ubuntu 24.04
 	molecule test -s default -- --limit ubuntu2404-mysql
+
+# Docker Compose testing
+docker-test: ## Quick test using Docker Compose
+	docker compose up -d
+	sleep 10
+	docker compose exec -T mysql-test ansible-playbook -i /inventory/hosts.yml /inventory/test-playbook.yml
+	docker compose down
+
+docker-shell: ## Open shell in test container
+	docker compose up -d
+	docker compose exec mysql-test bash
