@@ -16,10 +16,17 @@ A robust and comprehensive Ansible role for installing and configuring MySQL Ser
 
 ## Requirements
 
-- Ansible 2.9 or higher
-- Ubuntu 24.04+
+- Ansible 2.18 or higher
+- Ubuntu 22.04+ (see supported platforms below)
 - Sudo privileges on target hosts
 - Python 3 with pymysql module
+
+## Supported Platforms
+
+| Platform | Version | Status |
+|----------|---------|--------|
+| Ubuntu   | 22.04 (Jammy) | ✅ Supported |
+| Ubuntu   | 24.04 (Noble) | ✅ Supported |
 
 ## Role Variables
 
@@ -45,10 +52,9 @@ mysql_packages:
 mysql_innodb_buffer_pool_size: "256M"
 mysql_key_buffer_size: "256M"
 mysql_max_connections: "151"
-mysql_query_cache_size: "16M"
 
-# InnoDB settings
-mysql_innodb_log_file_size: "64M"
+# InnoDB settings (MySQL 8.0+ compatible)
+mysql_innodb_redo_log_capacity: "134217728"  # 128MB
 mysql_innodb_flush_log_at_trx_commit: "1"
 ```
 
@@ -139,7 +145,7 @@ None.
 - hosts: database_servers
   become: yes
   roles:
-    - role: ansible-mysql
+    - role: penwern.mysql
       mysql_root_password: "very_secure_password"
       mysql_bind_address: "0.0.0.0"
 ```
@@ -150,7 +156,7 @@ None.
 - hosts: database_servers
   become: yes
   roles:
-    - role: ansible-mysql
+    - role: penwern.mysql
       mysql_root_password: "{{ vault_mysql_root_password }}"
       mysql_bind_address: "10.0.1.100"
       mysql_max_connections: "500"
@@ -185,7 +191,7 @@ None.
 - hosts: mysql_master
   become: yes
   roles:
-    - role: ansible-mysql
+    - role: penwern.mysql
       mysql_replication_role: "master"
       mysql_server_id: "1"
       mysql_replication_user:
@@ -198,7 +204,7 @@ None.
 - hosts: mysql_slave
   become: yes
   roles:
-    - role: ansible-mysql
+    - role: penwern.mysql
       mysql_replication_role: "slave"
       mysql_server_id: "2"
       mysql_replication_master: "{{ hostvars[groups['mysql_master'][0]]['ansible_default_ipv4']['address'] }}"
@@ -219,7 +225,7 @@ The role includes sensible defaults, but you should adjust these based on your s
 
 - **Memory allocation**: Set `mysql_innodb_buffer_pool_size` to 70-80% of available RAM
 - **Connection limits**: Adjust `mysql_max_connections` based on your application needs
-- **Query cache**: Disable (`mysql_query_cache_type: "0"`) for MySQL 8.0+ as it's deprecated
+- **InnoDB redo logs**: Use `mysql_innodb_redo_log_capacity` for MySQL 8.0+ (replaces deprecated `innodb_log_file_size`)
 
 ## Testing
 
@@ -304,24 +310,27 @@ The role includes GitHub Actions workflows that automatically:
 
 ### Manual Testing
 
-For manual testing without Molecule:
+#### Option 1: Docker Compose (Recommended)
+```bash
+# Quick test with Docker Compose
+make docker-test
+
+# Or manually:
+docker-compose up -d
+docker-compose exec mysql-test ansible-playbook -i /inventory/hosts.yml /inventory/test-playbook.yml
+docker-compose down
+
+# For interactive testing:
+make docker-shell
+```
+
+#### Option 2: Traditional Ansible
 ```bash
 # Install dependencies
 pip install -r requirements-dev.txt
 
-# Create a test playbook
-cat > test-playbook.yml << EOF
----
-- hosts: localhost
-  become: yes
-  roles:
-    - ansible-mysql
-  vars:
-    mysql_root_password: "test123!"
-EOF
-
-# Run the playbook
-ansible-playbook -i localhost, test-playbook.yml
+# Use the provided test inventory
+ansible-playbook -i test-inventory/hosts.yml test-inventory/test-playbook.yml
 ```
 
 ## Troubleshooting
