@@ -13,13 +13,13 @@ repos:
       - id: check-executables-have-shebangs
 
   - repo: https://github.com/adrienverge/yamllint
-    rev: v1.35.1
+    rev: v1.37.1
     hooks:
       - id: yamllint
         args: [-c=.yamllint]
 
   - repo: https://github.com/ansible/ansible-lint
-    rev: v24.6.1
+    rev: v25.6.1
     hooks:
       - id: ansible-lint
         args: [--fix]
@@ -27,9 +27,15 @@ repos:
           - ansible-core
 
   - repo: https://github.com/commitizen-tools/commitizen
-    rev: v3.27.0
+    rev: v3.30.0
     hooks:
       - id: commitizen
+
+  - repo: https://github.com/psf/black
+    rev: 25.1.0
+    hooks:
+      - id: black
+        language_version: python3
 
 ci:
   autofix_commit_msg: |
