@@ -20,6 +20,7 @@ kinds:
   - playbook: molecule/*/prepare.yml
   - yaml: molecule/*/molecule.yml
 
+# Rules to enable in addition to the defaults
 enable_list:
   - args
   - var-naming
@@ -29,5 +30,12 @@ enable_list:
   - galaxy-version-incorrect
   - jinja
 
-skip_list:
-  - skip_ansible_lint
+# Rules to skip (disable)
+# skip_list:
+# - skip_ansible_lint
+# - yaml[line-length] # Allow longer lines in YAML for readability
+
+# Rules to warn about but not fail on
+warn_list:
+  - experimental # Warn about experimental features
+  - ignore-errors # Warn about ignore_errors usage
