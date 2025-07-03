@@ -5,24 +5,22 @@ galaxy_info:
   description: A robust MySQL server role for Ubuntu systems with comprehensive configuration options
   company: Penwern Limited
 
-  # If the issue tracker for your role is not on github, uncomment the
-  # next line and provide a value
-  # issue_tracker_url: http://example.com/issue/tracker
+  issue_tracker_url: https://github.com/penwern/ansible-mysql/issues
 
   license: MIT-0
 
-  min_ansible_version: "2.9"
+  min_ansible_version: "2.15"
 
   namespace: penwern
   role_name: mysql
 
-  # If this a Container Enabled role, provide the minimum Ansible Container
-  # version.
+  # If this a Container Enabled role, provide the minimum Ansible Container version.
   # min_ansible_container_version:
 
   platforms:
     - name: Ubuntu
       versions:
+        - jammy
         - noble
 
   galaxy_tags:
@@ -36,6 +34,7 @@ galaxy_info:
     - replication
     - backup
     - security
+    - jammy
     - noble
 
 dependencies: []
