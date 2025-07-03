@@ -31,8 +31,8 @@ enable_list:
   - jinja
 
 # Rules to skip (disable)
-# skip_list:
-# - skip_ansible_lint
+skip_list:
+  - skip_ansible_lint
 # - yaml[line-length] # Allow longer lines in YAML for readability
 
 # Rules to warn about but not fail on

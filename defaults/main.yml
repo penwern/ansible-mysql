@@ -2,10 +2,9 @@
 ---
 # defaults file for ansible-mysql
 
-# MySQL version detection and compatibility
-mysql_version: >-
-  {{ ansible_facts.packages['mysql-server'][0].version.split('-')[0]
-     if 'mysql-server' in ansible_facts.packages else '8.0' }}
+# MySQL version will be detected at runtime in tasks
+# Default fallback version for template compatibility
+mysql_version: "8.0"
 
 # MySQL service configuration
 mysql_service_name: mysql

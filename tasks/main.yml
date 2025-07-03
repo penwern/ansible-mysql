@@ -6,9 +6,25 @@
   ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
   tags: mysql
 
+- name: Validate required variables
+  ansible.builtin.assert:
+    that:
+      - mysql_root_password is defined
+      - mysql_root_password | length > 0
+    fail_msg: "mysql_root_password must be set and not empty"
+    success_msg: "Required variables validated"
+  tags: mysql
+
 - name: Gather package facts
   ansible.builtin.package_facts:
     manager: auto
+  tags: mysql
+
+- name: Detect MySQL version from installed packages
+  ansible.builtin.set_fact:
+    mysql_version: >-
+      {{ ansible_facts.packages['mysql-server'][0].version.split('-')[0]
+         if 'mysql-server' in ansible_facts.packages else '8.0' }}
   tags: mysql
 
 - name: MySQL pre-installation tasks
@@ -22,6 +38,12 @@
   tags:
     - mysql
     - mysql_install
+
+- name: Update MySQL version fact after installation
+  ansible.builtin.set_fact:
+    mysql_version: "{{ mysql_installed_version | default('8.0') }}"
+  when: mysql_installed_version is defined
+  tags: mysql
 
 - name: MySQL post-installation configuration
   ansible.builtin.include_tasks: post_install.yml

@@ -2,12 +2,12 @@
 ---
 # MySQL user management tasks
 
-- name: Ensure MySQL users are present
+- name: Manage MySQL users (create, update, or remove)
   community.mysql.mysql_user:
     login_unix_socket: "{{ mysql_socket }}"
     name: "{{ item.name }}"
     host: "{{ item.host | default('localhost') }}"
-    password: "{{ item.password }}"
+    password: "{{ item.password | default(omit) }}"
     priv: "{{ item.priv | default('*.*:USAGE') }}"
     state: "{{ item.state | default('present') }}"
     check_implicit_admin: true
@@ -17,35 +17,6 @@
   loop: "{{ mysql_users }}"
   when: mysql_users is defined
   no_log: true
-  loop_control:
-    label: "{{ item.name }}@{{ item.host | default('localhost') }}"
-
-- name: Ensure MySQL users have correct privileges
-  community.mysql.mysql_user:
-    login_unix_socket: "{{ mysql_socket }}"
-    name: "{{ item.name }}"
-    host: "{{ item.host | default('localhost') }}"
-    priv: "{{ item.priv | default('*.*:USAGE') }}"
-    append_privs: "{{ item.append_privs | default('no') }}"
-    state: present
-  loop: "{{ mysql_users }}"
-  when:
-    - mysql_users is defined
-    - item.state | default('present') == 'present'
-  loop_control:
-    label: >-
-      {{ item.name }}@{{ item.host | default('localhost') }} - {{ item.priv | default('*.*:USAGE') }}
-
-- name: Remove MySQL users (if state is absent)
-  community.mysql.mysql_user:
-    login_unix_socket: "{{ mysql_socket }}"
-    name: "{{ item.name }}"
-    host: "{{ item.host | default('localhost') }}"
-    state: absent
-  loop: "{{ mysql_users }}"
-  when:
-    - mysql_users is defined
-    - item.state | default('present') == 'absent'
   loop_control:
     label: "{{ item.name }}@{{ item.host | default('localhost') }}"
 

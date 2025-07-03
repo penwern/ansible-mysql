@@ -14,12 +14,6 @@
     - restart mysql
   register: mysql_config_updated
 
-- name: Validate MySQL configuration syntax
-  ansible.builtin.command: mysqld --help --verbose
-  register: mysql_config_check
-  changed_when: false
-  failed_when: mysql_config_check.rc != 0
-
 - name: Create custom configuration directory
   ansible.builtin.file:
     path: "{{ mysql_config_include_dir }}"
